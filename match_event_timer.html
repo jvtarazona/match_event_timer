@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rugby Event Tracker</title>
+<style>
+    #events-list {
+        margin-top: 20px;
+    }
+    #score {
+        margin-top: 20px;
+        font-size: 1.5em;
+    }
+    #countdown {
+        font-size: 2em;
+    }
+</style>
+</head>
+<body>
+
+<table id="countdown-form">
+    <tr>
+        <tr>
+            <td align="left">Part:</td>
+            <td align="left">Local Team:</td>
+            <td align="left">Visitor Team:</td>
+        </tr>
+        <tr>
+            <td>
+            <select id="part" required>
+                <option value="1" selected>1</option>
+                <option value="2">2</option>
+            </select>
+            </td>
+            <td><input type="text" id="local-team" required></td>
+            <td><input type="text" id="visitor-team" required></td>
+        </tr>
+        <td></td>
+    </tr>
+    <tr>
+        <td align="left">Enter Time:</td>
+        <td><input type="text" id="start-time" required pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]" value="00:20:00"></td>
+        <td colspan="2" align="left"><button type="button" onclick="startCountdown()">Start Countdown</button></td>
+    </tr>
+</table>
+    
+</form>
+
+<div id="current-time"></div>
+<form id="event-form" style="display: flex; flex-wrap: wrap; margin-right: 10px;">
+    <label for="team" style="flex-basis: 100%; margin-bottom: 10px;">Team:</label>
+    <select id="team" required style="flex-basis: 100%; margin-bottom: 10px;">
+        <option value="">Select Team</option>
+        <option value="Team A">Team A</option>
+        <option value="Team B">Team B</option>
+    </select>
+    <label for="player" style="flex-basis: 100%; margin-bottom: 10px;">Player:</label>
+    <input type="number" id="player" required style="flex-basis: 100%; margin-bottom: 10px;">
+    <label for="event" style="flex-basis: 100%; margin-bottom: 10px;">Event:</label>
+    <input type="text" id="event" required style="flex-basis: 100%; margin-bottom: 10px;">
+    <label for="is-try" style="flex-basis: 100%; margin-bottom: 10px;">Try?</label>
+    <input type="checkbox" id="is-try" style="margin-bottom: 10px; transform: scale(1.5);">
+    <button type="button" onclick="saveEvent()" style="flex-basis: 100%; margin-bottom: 10px;">Save Event</button>
+</form>
+
+<div id="score">
+    <h2>Score:</h2>
+    <ul id="score-list"></ul>
+</div>
+
+<div id="events-list">
+    <h2>Events List:</h2>
+    <ul id="events"></ul>
+</div>
+
+<button type="button" onclick="saveEventsToFile()">Export to CSV File</button>
+
+<script>
+    let countdownInterval;
+    let currentTime;
+    let events = [];
+
+    function startCountdown() {
+        document.body.style.backgroundColor = "white"; // Add this line to change the background color to red
+        //clearInterval(countdownInterval);        
+        const startTimeInput = document.getElementById('start-time').value;
+        currentTime = timeToSeconds(startTimeInput);
+        const part = document.getElementById('part').value;
+        const localTeam = document.getElementById('local-team').value;
+        const visitorTeam = document.getElementById('visitor-team').value;
+        const teamDropdown = document.getElementById('team');
+        teamDropdown.innerHTML = `
+            <option value="">Select Team</option>
+            <option value="${localTeam}">${localTeam}</option>
+            <option value="${visitorTeam}">${visitorTeam}</option>
+        `;
+        countdownInterval = setInterval(updateCountdown, 1000);
+        updateDisplay();
+    }
+
+    function updateCountdown() {
+        if (currentTime > 0) {
+            currentTime--;
+            updateDisplay();
+        } else {
+            //clearInterval(countdownInterval);
+            //alert('Countdown complete!');
+            document.body.style.backgroundColor = "red"; // Add this line to change the background color to red
+        }
+    }
+
+    function saveEvent() {
+        const part = document.getElementById('part').value;
+        const team = document.getElementById('team').value;
+        if (team === '') {
+            document.body.style.backgroundColor = "yellow";
+            return;
+        }
+        document.body.style.backgroundColor = "white";
+        const player = parseInt(document.getElementById('player').value);
+        const event = document.getElementById('event').value;
+        const isTry = document.getElementById('is-try').checked;
+        const startTimeInput = timeToSeconds(document.getElementById('start-time').value);
+        events.push([part, startTimeInput - currentTime, team, player, event, isTry]);
+        displayEvents();
+        clearEventForm();
+        updateScore();
+    }
+    
+    function timeToSeconds(time){
+        const [hours, minutes, seconds] = time.split(':').map(Number);
+        const timeInSeconds = hours * 3600 + minutes * 60 + seconds;
+        return timeInSeconds;
+    }
+    function displayEvents() {
+        const startTimeInput = timeToSeconds(document.getElementById('start-time').value);
+       
+        const eventsList = document.getElementById('events');
+        eventsList.innerHTML = '';
+        events.forEach((event, index) => {
+            const li = document.createElement('li');
+            const isTry = event[5] ? 'Yes' : 'No';
+            li.textContent = `Event ${index + 1}: Part=${event[0]}, Time=${formatTime(startTimeInput - event[1])}, Team=${event[2]}, Player=${event[3]}, Event=${event[4]}, Try?=${isTry} `;
+            
+            // Add remove button
+            const removeButton = document.createElement('button');
+            removeButton.textContent = 'Remove';
+            removeButton.addEventListener('click', () => {
+                events.splice(index, 1);
+                displayEvents();
+                updateScore();
+            });
+            li.appendChild(removeButton);
+            
+            eventsList.appendChild(li);
+        });
+    }
+    
+    function updateScore() {
+        const scoreList = document.getElementById('score-list');
+        const scoreMap = new Map();
+        events.forEach(event => {
+            const team = event[2];
+            const isTry = event[5];
+            if (!scoreMap.has(team)) {
+                scoreMap.set(team, 0);
+            }
+            if (isTry) {
+                scoreMap.set(team, scoreMap.get(team) + 1);
+            }
+        });
+        scoreList.innerHTML = '';
+        scoreMap.forEach((score, team) => {
+            const li = document.createElement('li');
+            li.innerHTML = `<h2>${team}: ${score}</h2>`;
+            scoreList.appendChild(li);
+        });
+    }
+
+    function updateDisplay() {
+        const timerDisplay = document.getElementById('current-time');
+        timerDisplay.innerHTML = `<h1 id="countdown">${formatTime(currentTime)}</h1>`;
+    }
+
+    function formatTime(timeInSeconds) {
+        const hours = Math.floor(timeInSeconds / 3600);
+        const minutes = Math.floor((timeInSeconds % 3600) / 60);
+        const seconds = Math.floor(timeInSeconds % 60);
+        return `${padZero(hours)}:${padZero(minutes)}:${padZero(seconds)}`;
+    }
+
+    function padZero(num) {
+        return num < 10 ? '0' + num : num;
+    }
+
+    //setInterval(updateDisplay, 2000); // Refresh display every 2 seconds
+
+    function clearEventForm() {
+        document.getElementById('team').value = '';
+        document.getElementById('player').value = '';
+        document.getElementById('event').value = '';
+        document.getElementById('is-try').checked = false;
+    }
+
+    function saveEventsToFile() {
+        const headers = ['Part', 'Time', 'Team', 'Player', 'Event', 'Try'];
+        const csvData = [headers, ...events];
+        const csvContent = csvData.map(row => row.join(',')).join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'events.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+</script>
+
+</body>
+</html>
